@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Epistemic Odds — PHIL 4040 Prediction Market</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">⚖️</div>
+    <h1>Epistemic Odds</h1>
+    <p class="login-subtitle">PHIL 4040 · Decision Theory &amp; Strategic Interactions</p>
+    <p class="login-desc">
+      Frank Ramsey argued that your beliefs are revealed by the bets you're willing to take.
+      This market lets you put your credences on the line — and score them with a
+      <strong>proper scoring rule</strong> that rewards honest probability reports.
+    </p>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="login-name">Your display name</label>
+        <input id="login-name" type="text" placeholder="e.g. Alice K." autocomplete="off" required />
+      </div>
+      <div class="form-group">
+        <label for="login-code">Class code</label>
+        <input id="login-code" type="text" placeholder="Provided by your instructor" autocomplete="off" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Enter the Market →</button>
+    </form>
+    <p class="login-footer">No account needed. Your session persists in this browser.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN APP (hidden until login)
+═══════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- HEADER / NAV -->
+  <header id="app-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="brand-icon">⚖️</span>
+        <span class="brand-name">Epistemic Odds</span>
+      </div>
+      <nav id="main-nav">
+        <button class="nav-link active" data-page="home">Home</button>
+        <button class="nav-link" data-page="bets">Browse Bets</button>
+        <button class="nav-link" data-page="propose">Propose a Bet</button>
+        <button class="nav-link" data-page="my-bets">My Predictions</button>
+        <button class="nav-link" data-page="leaderboard">Leaderboard</button>
+        <button class="nav-link instructor-only hidden" data-page="instructor">⚙ Instructor</button>
+      </nav>
+      <div class="header-user">
+        <span id="user-credits-badge" class="credits-badge">0 pts</span>
+        <span id="header-username"></span>
+        <button id="logout-btn" class="btn btn-sm btn-outline">Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MOBILE NAV TOGGLE -->
+  <button id="nav-toggle" class="nav-toggle">☰ Menu</button>
+  <nav id="mobile-nav" class="mobile-nav hidden">
+    <button class="nav-link" data-page="home">Home</button>
+    <button class="nav-link" data-page="bets">Browse Bets</button>
+    <button class="nav-link" data-page="propose">Propose a Bet</button>
+    <button class="nav-link" data-page="my-bets">My Predictions</button>
+    <button class="nav-link" data-page="leaderboard">Leaderboard</button>
+    <button class="nav-link instructor-only hidden" data-page="instructor">⚙ Instructor</button>
+  </nav>
+
+  <main id="main-content">
+
+    <!-- ─── HOME PAGE ─── -->
+    <section id="page-home" class="page">
+      <div class="page-hero">
+        <h2>Welcome to the Market</h2>
+        <p>
+          Every prediction you make is a bet on what you believe.
+          Score above <strong>0.75</strong> on a binary bet and you've outperformed a
+          random guesser — but only by reporting your <em>true</em> credence.
+        </p>
+        <div class="hero-cards">
+          <div class="info-card">
+            <div class="info-card-icon">📐</div>
+            <h4>Proper Scoring</h4>
+            <p>The Brier rule makes honest reporting your best strategy under Expected Utility Theory.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-card-icon">🧠</div>
+            <h4>Prospect Theory Predicts…</h4>
+            <p>You'll overweight small probabilities and underweight near-certainties. Does the data bear that out?</p>
+          </div>
+          <div class="info-card">
+            <div class="info-card-icon">📉</div>
+            <h4>Loss Aversion</h4>
+            <p>Will students hedge toward 0.5 to avoid the "loss" of a bad score? Watch the calibration chart.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-columns">
+        <div class="home-col">
+          <h3>Open Bets</h3>
+          <div id="home-bets-list">
+            <div class="loading">Loading bets…</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="navigate('bets')">View all bets →</button>
+        </div>
+        <div class="home-col">
+          <h3>Top Predictors</h3>
+          <div id="home-leaderboard">
+            <div class="loading">Loading…</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="navigate('leaderboard')">Full leaderboard →</button>
+        </div>
+      </div>
+
+      <!-- Scoring primer -->
+      <div class="primer-box">
+        <h3>How Scoring Works</h3>
+        <div class="primer-grid">
+          <div class="primer-section">
+            <h4>Binary Bets (Yes/No)</h4>
+            <p>You report a probability <em>p</em> that something will happen. The <strong>Brier score</strong> is:</p>
+            <div class="formula">Score = 1 − (p − o)²</div>
+            <p>where <em>o</em> = 1 if YES happened, 0 if NO. Higher is better. Range: [0, 1].</p>
+            <table class="score-table">
+              <thead><tr><th>Prediction</th><th>Outcome YES</th><th>Outcome NO</th></tr></thead>
+              <tbody>
+                <tr><td>p = 1.0 (certain YES)</td><td class="good">1.00 ✓</td><td class="bad">0.00 ✗</td></tr>
+                <tr><td>p = 0.9</td><td class="good">0.99</td><td class="bad">0.19</td></tr>
+                <tr><td>p = 0.7</td><td class="ok">0.91</td><td class="ok">0.51</td></tr>
+                <tr><td>p = 0.5 (uncertain)</td><td class="ok">0.75</td><td class="ok">0.75</td></tr>
+                <tr><td>p = 0.3</td><td class="ok">0.51</td><td class="ok">0.91</td></tr>
+                <tr><td>p = 0.0 (certain NO)</td><td class="bad">0.00 ✗</td><td class="good">1.00 ✓</td></tr>
+              </tbody>
+            </table>
+            <p class="primer-note">
+              <strong>Why is this "proper"?</strong> Under EUT, maximizing expected Brier score
+              leads you to report your true credence — not a strategic over- or under-estimate.
+              Prospect Theory, however, predicts systematic distortions via π(p).
+            </p>
+          </div>
+          <div class="primer-section">
+            <h4>Numerical Bets</h4>
+            <p>You forecast a number. Score falls linearly toward zero as your error grows:</p>
+            <div class="formula">Score = max(0, 1 − |f − o| / tolerance)</div>
+            <p>For example, a gas-price bet with tolerance = $2: being off by $1 earns 0.50.</p>
+
+            <h4 style="margin-top:1.5rem">Points System</h4>
+            <p>Each resolved bet converts your score to <strong>points</strong>:</p>
+            <div class="formula">Points = Score × 10  (rounded to 2 dp)</div>
+            <p>The leaderboard ranks by cumulative points across all resolved bets.
+               Participating in more bets, even imperfectly, compounds your total.</p>
+
+            <h4 style="margin-top:1.5rem">Proposing Bets</h4>
+            <p>Students can propose bets. The instructor approves them and sets resolution criteria.
+               Having your bet accepted earns <strong>+2 bonus points</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── BROWSE BETS PAGE ─── -->
+    <section id="page-bets" class="page hidden">
+      <div class="page-header">
+        <h2>Browse Bets</h2>
+        <div class="bet-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="open">Open</button>
+          <button class="filter-btn" data-filter="resolved">Resolved</button>
+        </div>
+      </div>
+      <div id="bets-list" class="bets-grid">
+        <div class="loading">Loading bets…</div>
+      </div>
+    </section>
+
+    <!-- ─── PROPOSE A BET PAGE ─── -->
+    <section id="page-propose" class="page hidden">
+      <div class="page-header">
+        <h2>Propose a Bet</h2>
+        <p class="page-subtitle">
+          Suggest a question for the class market. The instructor will review and either approve it
+          (making it an official open bet) or request changes. Good bets have clear, verifiable
+          resolution criteria and a specific resolution date.
+        </p>
+      </div>
+
+      <form id="propose-form" class="form-card">
+        <div class="form-group">
+          <label for="p-title">Bet title <span class="req">*</span></label>
+          <input id="p-title" type="text" placeholder="e.g. Will it snow in Moscow before April 1st?" required />
+        </div>
+
+        <div class="form-group">
+          <label for="p-description">Description</label>
+          <textarea id="p-description" rows="3" placeholder="Background context, why this is interesting…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="p-resolution">Resolution criteria <span class="req">*</span></label>
+          <textarea id="p-resolution" rows="3"
+            placeholder="Exactly how will we know the outcome? (e.g. 'Any non-zero snowfall recorded at Moscow Mountain SNOTEL station by midnight on Apr 1')" required></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="p-type">Bet type <span class="req">*</span></label>
+            <select id="p-type">
+              <option value="binary">Binary (Yes / No)</option>
+              <option value="numeric">Numerical (enter a number)</option>
+              <option value="categorical">Categorical (choose from options)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="p-category">Category</label>
+            <select id="p-category">
+              <option value="weather">Weather</option>
+              <option value="politics">Politics / Policy</option>
+              <option value="sports">Sports</option>
+              <option value="class">Class / Campus</option>
+              <option value="economics">Economics / Markets</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Numeric fields (shown conditionally) -->
+        <div id="numeric-fields" class="hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="p-num-min">Plausible minimum</label>
+              <input id="p-num-min" type="number" step="any" placeholder="0" />
+            </div>
+            <div class="form-group">
+              <label for="p-num-max">Plausible maximum</label>
+              <input id="p-num-max" type="number" step="any" placeholder="100" />
+            </div>
+            <div class="form-group">
+              <label for="p-num-tol">Tolerance (score→0 beyond this)</label>
+              <input id="p-num-tol" type="number" step="any" placeholder="e.g. 2 for a $2 error margin" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Categorical fields (shown conditionally) -->
+        <div id="categorical-fields" class="hidden">
+          <div class="form-group">
+            <label>Options (one per line)</label>
+            <textarea id="p-cat-options" rows="4" placeholder="Paramount&#10;Disney&#10;Universal&#10;Warner Bros&#10;Sony"></textarea>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="p-date">Expected resolution date <span class="req">*</span></label>
+          <input id="p-date" type="date" required />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit Proposal →</button>
+      </form>
+    </section>
+
+    <!-- ─── MY PREDICTIONS PAGE ─── -->
+    <section id="page-my-bets" class="page hidden">
+      <div class="page-header">
+        <h2>My Predictions</h2>
+      </div>
+      <div id="my-stats" class="my-stats-bar"></div>
+      <div id="my-bets-list">
+        <div class="loading">Loading your predictions…</div>
+      </div>
+    </section>
+
+    <!-- ─── LEADERBOARD PAGE ─── -->
+    <section id="page-leaderboard" class="page hidden">
+      <div class="page-header">
+        <h2>Leaderboard</h2>
+        <p class="page-subtitle">Ranked by cumulative points from resolved bets.</p>
+      </div>
+      <div id="leaderboard-table-wrap">
+        <div class="loading">Loading leaderboard…</div>
+      </div>
+
+      <div class="calibration-section">
+        <h3>Class Calibration</h3>
+        <p>
+          A perfectly calibrated forecaster's predictions match reality: when you say 70%,
+          the event happens 70% of the time. The chart below shows how the class performs
+          across all binary bets. Does the class over-weight (above the diagonal) or
+          under-weight (below the diagonal) certain probability ranges?
+          <em>Prospect Theory predicts a characteristic inverse-S distortion.</em>
+        </p>
+        <div class="chart-wrap">
+          <canvas id="calibration-chart" width="420" height="420"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── INSTRUCTOR PAGE ─── -->
+    <section id="page-instructor" class="page hidden">
+      <div class="page-header">
+        <h2>Instructor Panel</h2>
+      </div>
+
+      <!-- Create official bet -->
+      <div class="panel-section">
+        <h3>Create Official Bet</h3>
+        <form id="create-bet-form" class="form-card">
+          <div class="form-group">
+            <label>Title <span class="req">*</span></label>
+            <input id="cb-title" type="text" required />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="cb-description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Resolution criteria <span class="req">*</span></label>
+            <textarea id="cb-resolution" rows="3" required></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type <span class="req">*</span></label>
+              <select id="cb-type">
+                <option value="binary">Binary (Yes / No)</option>
+                <option value="numeric">Numerical</option>
+                <option value="categorical">Categorical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <select id="cb-category">
+                <option value="weather">Weather</option>
+                <option value="politics">Politics / Policy</option>
+                <option value="sports">Sports</option>
+                <option value="class">Class / Campus</option>
+                <option value="economics">Economics / Markets</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div id="cb-numeric-fields" class="hidden">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Min</label>
+                <input id="cb-num-min" type="number" step="any" />
+              </div>
+              <div class="form-group">
+                <label>Max</label>
+                <input id="cb-num-max" type="number" step="any" />
+              </div>
+              <div class="form-group">
+                <label>Tolerance</label>
+                <input id="cb-num-tol" type="number" step="any" />
+              </div>
+            </div>
+          </div>
+          <div id="cb-categorical-fields" class="hidden">
+            <div class="form-group">
+              <label>Options (one per line)</label>
+              <textarea id="cb-cat-options" rows="4"></textarea>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Resolution date <span class="req">*</span></label>
+            <input id="cb-date" type="date" required />
+          </div>
+          <button type="submit" class="btn btn-primary">Create Bet</button>
+        </form>
+      </div>
+
+      <!-- Pending proposals -->
+      <div class="panel-section">
+        <h3>Pending Student Proposals</h3>
+        <div id="pending-proposals">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Open bets — resolve -->
+      <div class="panel-section">
+        <h3>Open Bets — Resolve Outcomes</h3>
+        <div id="instructor-open-bets">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+    </section>
+
+  </main><!-- /main -->
+
+</div><!-- /#app -->
+
+<!-- ═══════════════════════════════════════════════
+     BET DETAIL MODAL
+═══════════════════════════════════════════════ -->
+<div id="bet-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close-btn" aria-label="Close">✕</button>
+    <div id="modal-body"><!-- filled by JS --></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TOAST NOTIFICATIONS
+═══════════════════════════════════════════════ -->
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- ═══════════════════════════════════════════════
+     SCRIPTS
+     Firebase v10 compat API — no build step needed
+═══════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
