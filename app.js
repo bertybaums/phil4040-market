@@ -19,7 +19,7 @@ let calibrationChart = null;
 // ══════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   // Initialize Firebase
-  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
 
   // Wire up login form
