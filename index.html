@@ -388,8 +388,23 @@
 
       <!-- Open bets — resolve -->
       <div class="panel-section">
-        <h3>Open Bets — Resolve Outcomes</h3>
+        <h3>Open Bets — Resolve or Archive</h3>
+        <p class="text-muted text-sm" style="margin-bottom:1rem">
+          Archive removes a bet from the site entirely. If the bet was already resolved,
+          archiving also reverses any points that were awarded.
+        </p>
         <div id="instructor-open-bets">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Resolved Bets — Archive</h3>
+        <p class="text-muted text-sm" style="margin-bottom:1rem">
+          Use this to remove test bets or any resolved bet you don't want counted.
+          Archiving reverses all points awarded for that bet.
+        </p>
+        <div id="instructor-resolved-bets">
           <div class="loading">Loading…</div>
         </div>
       </div>

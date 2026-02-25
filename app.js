@@ -797,6 +797,7 @@ async function loadInstructor() {
   await Promise.all([
     loadPendingProposals(),
     loadInstructorOpenBets(),
+    loadResolvedBets(),
   ]);
 }
 
@@ -895,12 +896,93 @@ async function loadInstructorOpenBets() {
         <div class="resolve-controls">
           ${outcomeInput}
           <button class="btn btn-sm btn-primary" onclick="resolveBet('${b.id}')">Resolve</button>
+          <button class="btn btn-sm btn-outline" onclick="archiveBet('${b.id}')" title="Remove from site without scoring">Archive</button>
         </div>
       </div>`;
     }).join('');
   } catch (err) {
     console.error('loadInstructorOpenBets error:', err);
     el.innerHTML = `<p style="color:var(--bad)">Error loading bets: ${esc(err.message)}</p>`;
+  }
+}
+
+async function loadResolvedBets() {
+  const el = document.getElementById('instructor-resolved-bets');
+  try {
+    const snap = await db.collection('bets')
+      .where('classCode', '==', CLASS_CODE)
+      .where('status', '==', 'resolved')
+      .get();
+
+    if (snap.empty) {
+      el.innerHTML = '<p class="text-muted">No resolved bets.</p>';
+      return;
+    }
+
+    const resolved = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+
+    el.innerHTML = resolved.map(b => `<div class="resolve-row">
+      <div>
+        <span class="resolve-title">${esc(b.title)}</span>
+        <div class="text-muted text-sm">
+          Outcome: <strong>${formatOutcome(b.outcome, b)}</strong>
+          &nbsp;·&nbsp; ${b.predictionCount || 0} prediction(s)
+        </div>
+      </div>
+      <div class="resolve-controls">
+        <button class="btn btn-sm btn-danger" onclick="archiveBet('${b.id}')">Archive &amp; reverse scores</button>
+      </div>
+    </div>`).join('');
+  } catch (err) {
+    console.error('loadResolvedBets error:', err);
+    el.innerHTML = `<p style="color:var(--bad)">Error loading resolved bets: ${esc(err.message)}</p>`;
+  }
+}
+
+async function archiveBet(betId) {
+  if (!confirm('Archive this bet? If it was resolved, all points awarded will be reversed.')) return;
+
+  try {
+    const betDoc = await db.collection('bets').doc(betId).get();
+    if (!betDoc.exists) { showToast('Bet not found.', 'error'); return; }
+    const bet = betDoc.data();
+
+    const predsSnap = await db.collection('predictions')
+      .where('betId', '==', betId)
+      .get();
+
+    const batch = db.batch();
+
+    // If the bet was resolved, reverse points from each predictor's totals
+    if (bet.status === 'resolved') {
+      predsSnap.docs.forEach(predDoc => {
+        const pred = predDoc.data();
+        if (pred.score != null) {
+          const userRef = db.collection('users').doc(pred.userId);
+          batch.set(userRef, {
+            totalPoints:   firebase.firestore.FieldValue.increment(-(pred.points || 0)),
+            totalScore:    firebase.firestore.FieldValue.increment(-(pred.score  || 0)),
+            resolvedCount: firebase.firestore.FieldValue.increment(-1),
+          }, { merge: true });
+          // Clear the score so it doesn't confuse "My Predictions"
+          batch.update(predDoc.ref, { score: null, points: null, archived: true });
+        }
+      });
+    }
+
+    batch.update(betDoc.ref, { status: 'archived' });
+    await batch.commit();
+
+    const msg = bet.status === 'resolved'
+      ? `Bet archived and scores reversed for ${predsSnap.size} predictor(s).`
+      : 'Bet archived.';
+    showToast(msg, 'success');
+    loadInstructor();
+  } catch (err) {
+    console.error('archiveBet error:', err);
+    showToast('Error archiving bet: ' + err.message, 'error');
   }
 }
 
