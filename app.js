@@ -188,48 +188,54 @@ function closeMobileNav() {
 // HOME PAGE
 // ══════════════════════════════════════════════════
 async function loadHome() {
-  // Recent open bets
-  const betSnap = await db.collection('bets')
-    .where('classCode', '==', CLASS_CODE)
-    .where('status', '==', 'open')
-    .orderBy('createdAt', 'desc')
-    .limit(5)
-    .get();
+  try {
+    // Recent open bets — no orderBy to avoid composite index requirement; sort client-side
+    const betSnap = await db.collection('bets')
+      .where('classCode', '==', CLASS_CODE)
+      .where('status', '==', 'open')
+      .get();
 
-  const el = document.getElementById('home-bets-list');
-  if (betSnap.empty) {
-    el.innerHTML = '<div class="empty-state">No open bets yet.</div>';
-  } else {
-    el.innerHTML = betSnap.docs.map(d => {
-      const b = { id: d.id, ...d.data() };
-      return `<div class="mini-bet">
+    const el = document.getElementById('home-bets-list');
+    if (betSnap.empty) {
+      el.innerHTML = '<div class="empty-state">No open bets yet.</div>';
+    } else {
+      const bets = betSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt))
+        .slice(0, 5);
+      el.innerHTML = bets.map(b => `<div class="mini-bet">
         <span class="mini-bet-title">${esc(b.title)}</span>
         <button class="btn btn-sm btn-outline" onclick="openBetModal('${b.id}')">Predict</button>
-      </div>`;
-    }).join('');
-  }
+      </div>`).join('');
+    }
 
-  // Mini leaderboard
-  const userSnap = await db.collection('users')
-    .where('classCode', '==', CLASS_CODE)
-    .orderBy('totalPoints', 'desc')
-    .limit(5)
-    .get();
+    // Mini leaderboard
+    const userSnap = await db.collection('users')
+      .where('classCode', '==', CLASS_CODE)
+      .get();
 
-  const lb = document.getElementById('home-leaderboard');
-  if (userSnap.empty) {
-    lb.innerHTML = '<div class="empty-state">No predictions resolved yet.</div>';
-  } else {
-    const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
-    lb.innerHTML = userSnap.docs.map((d, i) => {
-      const u = d.data();
-      const pts = (u.totalPoints || 0).toFixed(1);
-      return `<div class="mini-leaderboard-row">
-        <span class="mini-rank">${medals[i]}</span>
-        <span class="mini-name">${esc(u.displayName)}</span>
-        <span class="mini-pts">${pts} pts</span>
-      </div>`;
-    }).join('');
+    const lb = document.getElementById('home-leaderboard');
+    if (userSnap.empty) {
+      lb.innerHTML = '<div class="empty-state">No predictions resolved yet.</div>';
+    } else {
+      const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
+      const users = userSnap.docs
+        .map(d => d.data())
+        .filter(u => (u.totalPoints || 0) > 0)
+        .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+        .slice(0, 5);
+      if (users.length === 0) {
+        lb.innerHTML = '<div class="empty-state">No predictions resolved yet.</div>';
+      } else {
+        lb.innerHTML = users.map((u, i) => `<div class="mini-leaderboard-row">
+          <span class="mini-rank">${medals[i]}</span>
+          <span class="mini-name">${esc(u.displayName)}</span>
+          <span class="mini-pts">${(u.totalPoints || 0).toFixed(1)} pts</span>
+        </div>`).join('');
+      }
+    }
+  } catch (err) {
+    console.error('loadHome error:', err);
   }
 }
 
@@ -237,14 +243,21 @@ async function loadHome() {
 // BETS PAGE
 // ══════════════════════════════════════════════════
 async function loadBetsPage() {
-  const snap = await db.collection('bets')
-    .where('classCode', '==', CLASS_CODE)
-    .where('status', 'in', ['open', 'resolved', 'closed'])
-    .orderBy('createdAt', 'desc')
-    .get();
+  try {
+    const snap = await db.collection('bets')
+      .where('classCode', '==', CLASS_CODE)
+      .where('status', 'in', ['open', 'resolved', 'closed'])
+      .get();
 
-  allBets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderBets(allBets);
+    allBets = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+    renderBets(allBets);
+  } catch (err) {
+    console.error('loadBetsPage error:', err);
+    document.getElementById('bets-list').innerHTML =
+      `<div class="empty-state">Error loading bets: ${esc(err.message)}</div>`;
+  }
 }
 
 function renderBets(bets) {
@@ -559,11 +572,16 @@ async function handlePropose(e) {
     }
   }
 
-  await db.collection('bets').add(bet);
-  showToast('Proposal submitted! The instructor will review it.', 'success');
-  document.getElementById('propose-form').reset();
-  document.getElementById('numeric-fields').classList.add('hidden');
-  document.getElementById('categorical-fields').classList.add('hidden');
+  try {
+    await db.collection('bets').add(bet);
+    showToast('Proposal submitted! The instructor will review it.', 'success');
+    document.getElementById('propose-form').reset();
+    document.getElementById('numeric-fields').classList.add('hidden');
+    document.getElementById('categorical-fields').classList.add('hidden');
+  } catch (err) {
+    console.error('handlePropose error:', err);
+    showToast('Error submitting proposal: ' + err.message, 'error');
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -572,7 +590,6 @@ async function handlePropose(e) {
 async function loadMyBets() {
   const snap = await db.collection('predictions')
     .where('userId', '==', currentUser.id)
-    .orderBy('createdAt', 'desc')
     .get();
 
   if (snap.empty) {
@@ -582,7 +599,9 @@ async function loadMyBets() {
     return;
   }
 
-  const preds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const preds = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
 
   // Fetch bet details
   const betIds = [...new Set(preds.map(p => p.betId))];
@@ -641,11 +660,13 @@ async function loadMyBets() {
 async function loadLeaderboard() {
   const snap = await db.collection('users')
     .where('classCode', '==', CLASS_CODE)
-    .orderBy('totalPoints', 'desc')
-    .limit(50)
     .get();
 
-  const users = snap.docs.map((d, i) => ({ rank: i + 1, id: d.id, ...d.data() }));
+  const users = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+    .slice(0, 50)
+    .map((u, i) => ({ rank: i + 1, ...u }));
   const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
   const rows = users.map(u => {
@@ -780,21 +801,23 @@ async function loadInstructor() {
 }
 
 async function loadPendingProposals() {
-  const snap = await db.collection('bets')
-    .where('classCode', '==', CLASS_CODE)
-    .where('status', '==', 'proposed')
-    .orderBy('createdAt', 'desc')
-    .get();
-
   const el = document.getElementById('pending-proposals');
-  if (snap.empty) {
-    el.innerHTML = '<p class="text-muted">No pending proposals.</p>';
-    return;
-  }
+  try {
+    const snap = await db.collection('bets')
+      .where('classCode', '==', CLASS_CODE)
+      .where('status', '==', 'proposed')
+      .get();
 
-  el.innerHTML = snap.docs.map(d => {
-    const b = { id: d.id, ...d.data() };
-    return `<div class="proposal-card">
+    if (snap.empty) {
+      el.innerHTML = '<p class="text-muted">No pending proposals.</p>';
+      return;
+    }
+
+    const proposals = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+
+    el.innerHTML = proposals.map(b => `<div class="proposal-card">
       <h4>${esc(b.title)}</h4>
       <p class="text-muted text-sm">By ${esc(b.createdByName || '—')} · ${capitalise(b.type)} · ${capitalise(b.category || '')}</p>
       ${b.description ? `<p class="text-sm">${esc(b.description)}</p>` : ''}
@@ -803,8 +826,11 @@ async function loadPendingProposals() {
         <button class="btn btn-success btn-sm" onclick="approveProposal('${b.id}')">✓ Approve</button>
         <button class="btn btn-danger btn-sm"  onclick="rejectProposal('${b.id}')">✗ Reject</button>
       </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
+  } catch (err) {
+    console.error('loadPendingProposals error:', err);
+    el.innerHTML = `<p style="color:var(--bad)">Error loading proposals: ${esc(err.message)}</p>`;
+  }
 }
 
 async function approveProposal(betId) {
@@ -831,20 +857,23 @@ async function rejectProposal(betId) {
 }
 
 async function loadInstructorOpenBets() {
-  const snap = await db.collection('bets')
-    .where('classCode', '==', CLASS_CODE)
-    .where('status', '==', 'open')
-    .orderBy('createdAt', 'desc')
-    .get();
-
   const el = document.getElementById('instructor-open-bets');
-  if (snap.empty) {
-    el.innerHTML = '<p class="text-muted">No open bets to resolve.</p>';
-    return;
-  }
+  try {
+    const snap = await db.collection('bets')
+      .where('classCode', '==', CLASS_CODE)
+      .where('status', '==', 'open')
+      .get();
 
-  el.innerHTML = snap.docs.map(d => {
-    const b = { id: d.id, ...d.data() };
+    if (snap.empty) {
+      el.innerHTML = '<p class="text-muted">No open bets to resolve.</p>';
+      return;
+    }
+
+    const openBets = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+
+    el.innerHTML = openBets.map(b => {
     let outcomeInput = '';
     if (b.type === 'binary') {
       outcomeInput = `<select class="resolve-outcome" data-id="${b.id}" data-type="binary">
@@ -861,14 +890,18 @@ async function loadInstructorOpenBets() {
       </select>`;
     }
 
-    return `<div class="resolve-row">
-      <span class="resolve-title">${esc(b.title)} <span class="text-muted text-sm">(${b.predictionCount || 0} preds)</span></span>
-      <div class="resolve-controls">
-        ${outcomeInput}
-        <button class="btn btn-sm btn-primary" onclick="resolveBet('${b.id}')">Resolve</button>
-      </div>
-    </div>`;
-  }).join('');
+      return `<div class="resolve-row">
+        <span class="resolve-title">${esc(b.title)} <span class="text-muted text-sm">(${b.predictionCount || 0} preds)</span></span>
+        <div class="resolve-controls">
+          ${outcomeInput}
+          <button class="btn btn-sm btn-primary" onclick="resolveBet('${b.id}')">Resolve</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('loadInstructorOpenBets error:', err);
+    el.innerHTML = `<p style="color:var(--bad)">Error loading bets: ${esc(err.message)}</p>`;
+  }
 }
 
 function toggleCreateTypeFields() {
@@ -910,12 +943,17 @@ async function handleCreateBet(e) {
     }
   }
 
-  await db.collection('bets').add(bet);
-  showToast('Bet created!', 'success');
-  document.getElementById('create-bet-form').reset();
-  document.getElementById('cb-numeric-fields').classList.add('hidden');
-  document.getElementById('cb-categorical-fields').classList.add('hidden');
-  loadInstructorOpenBets();
+  try {
+    await db.collection('bets').add(bet);
+    showToast('Bet created!', 'success');
+    document.getElementById('create-bet-form').reset();
+    document.getElementById('cb-numeric-fields').classList.add('hidden');
+    document.getElementById('cb-categorical-fields').classList.add('hidden');
+    loadInstructorOpenBets();
+  } catch (err) {
+    console.error('handleCreateBet error:', err);
+    showToast('Error creating bet: ' + err.message, 'error');
+  }
 }
 
 async function resolveBet(betId) {
@@ -1004,6 +1042,14 @@ function calculateScore(bet, prediction, outcome) {
 // ══════════════════════════════════════════════════
 // UTILITIES
 // ══════════════════════════════════════════════════
+// Convert a Firestore Timestamp, Date, or date string to milliseconds for sorting
+function tsMillis(val) {
+  if (!val) return 0;
+  if (val.toMillis) return val.toMillis();      // Firestore Timestamp
+  if (val.toDate)   return val.toDate().getTime();
+  return new Date(val).getTime() || 0;
+}
+
 function formatDate(val) {
   if (!val) return '—';
   // Firestore Timestamp or plain string
