@@ -20,5 +20,5 @@ const firebaseConfig = {
    The instructor enters INSTRUCTOR_CODE to get
    the admin panel. Keep INSTRUCTOR_CODE private!
 ─────────────────────────────────────────────── */
-const CLASS_CODE      = "PHIL4040";          // share with students
-const INSTRUCTOR_CODE = "PHIL4040-INST26";   // keep private — change to something memorable
+const CLASS_CODE      = "PHIL4040F26";          // share with students
+const INSTRUCTOR_CODE = "PHIL4040-INST26-berty";   // keep private — change to something memorable
