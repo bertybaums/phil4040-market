@@ -487,6 +487,22 @@ td.ok   { color: var(--ok); }
 .badge-proposed { background: #fff3cd; color: #856404; }
 .badge-official { background: var(--primary); color: #fff; }
 .badge-closed  { background: #e9ecef; color: #6c757d; }
+.badge-deadline-passed { background: #f8d7da; color: #721c24; }
+
+.deadline-edit {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .35rem;
+  flex-wrap: wrap;
+}
+.deadline-edit input[type="date"] {
+  font-size: .85rem;
+  padding: .2rem .4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
 
 .bet-description {
   font-size: .88rem;

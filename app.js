@@ -281,7 +281,12 @@ function betCardHTML(bet) {
   const date = bet.resolutionDate ? formatDate(bet.resolutionDate) : '—';
   const count = bet.predictionCount || 0;
   const desc = bet.description ? `<div class="bet-description">${esc(bet.description)}</div>` : '';
-  const canPredict = bet.status === 'open';
+  const today = new Date().toISOString().slice(0, 10);
+  const deadlinePassed = !!(bet.predictionDeadline && today > bet.predictionDeadline);
+  const canPredict = bet.status === 'open' && !deadlinePassed;
+  const deadlineStr = bet.predictionDeadline
+    ? ` &nbsp;·&nbsp; ⏰ Predict by: ${formatDate(bet.predictionDeadline)}${deadlinePassed ? ' <span class="badge badge-deadline-passed">Closed</span>' : ''}`
+    : '';
 
   return `<div class="bet-card ${bet.status}" data-id="${bet.id}">
     <div class="bet-card-header">
@@ -292,7 +297,7 @@ function betCardHTML(bet) {
     </div>
     ${desc}
     <div class="bet-card-footer">
-      <span>📅 ${date} &nbsp;·&nbsp; 👥 ${count} prediction${count !== 1 ? 's' : ''}</span>
+      <span>📅 Resolves: ${date}${deadlineStr} &nbsp;·&nbsp; 👥 ${count} prediction${count !== 1 ? 's' : ''}</span>
       <div class="bet-card-actions">
         <button class="btn btn-sm btn-outline" onclick="openBetModal('${bet.id}')">
           ${canPredict ? 'Predict →' : 'View'}
@@ -310,6 +315,10 @@ async function openBetModal(betId) {
   if (!betDoc.exists) { showToast('Bet not found.', 'error'); return; }
   const bet = { id: betDoc.id, ...betDoc.data() };
 
+  // Check if prediction deadline has passed
+  const today = new Date().toISOString().slice(0, 10);
+  bet.deadlinePassed = !!(bet.predictionDeadline && today > bet.predictionDeadline);
+
   // Check if user already has a prediction
   const predId = betId + '_' + currentUser.id;
   const predDoc = await db.collection('predictions').doc(predId).get();
@@ -319,7 +328,7 @@ async function openBetModal(betId) {
   document.getElementById('bet-modal').classList.remove('hidden');
 
   // Wire up the prediction controls based on type
-  if (bet.status === 'open') {
+  if (bet.status === 'open' && !bet.deadlinePassed) {
     if (bet.type === 'binary') wireBinarySlider(bet, existingPred);
     else if (bet.type === 'categorical') wireCategoricalInputs(bet, existingPred);
     // Numeric uses a plain number input — just wire submit
@@ -329,8 +338,9 @@ async function openBetModal(betId) {
 }
 
 function betModalHTML(bet, existing) {
-  const date   = bet.resolutionDate ? formatDate(bet.resolutionDate) : '—';
-  const count  = bet.predictionCount || 0;
+  const date     = bet.resolutionDate ? formatDate(bet.resolutionDate) : '—';
+  const deadline = bet.predictionDeadline ? formatDate(bet.predictionDeadline) : null;
+  const count    = bet.predictionCount || 0;
   const badges = [
     bet.isOfficial ? '<span class="badge badge-official">Official</span>' : '',
     `<span class="badge badge-${bet.status}">${capitalise(bet.status)}</span>`,
@@ -346,8 +356,15 @@ function betModalHTML(bet, existing) {
   }
 
   let predArea = '';
-  if (bet.status === 'open') {
+  if (bet.status === 'open' && !bet.deadlinePassed) {
     predArea = predictionAreaHTML(bet, existing);
+  } else if (bet.status === 'open' && bet.deadlinePassed) {
+    const closedNote = existing
+      ? `You predicted: <strong>${formatPredValue(existing.value, bet)}</strong>. `
+      : '';
+    predArea = `<p class="text-muted text-sm" style="margin-top:.75rem">
+      ⏰ Prediction deadline has passed (${deadline}).
+      ${closedNote}Scores will be posted when the bet resolves.</p>`;
   } else if (existing) {
     const scoreStr = existing.score != null
       ? `Score: ${existing.score.toFixed(3)} → ${(existing.score * 10).toFixed(1)} pts`
@@ -367,7 +384,7 @@ function betModalHTML(bet, existing) {
     ${bet.description ? `<p>${esc(bet.description)}</p>` : ''}
     <hr class="divider">
     <p><strong>Resolution criteria:</strong> ${esc(bet.resolutionCriteria || '—')}</p>
-    <p class="text-muted text-sm">📅 Resolves: ${date} &nbsp;·&nbsp; 👥 ${count} prediction${count !== 1 ? 's' : ''} &nbsp;·&nbsp; By: ${esc(bet.createdByName || '—')}</p>
+    <p class="text-muted text-sm">📅 Resolves: ${date}${deadline ? ` &nbsp;·&nbsp; ⏰ Predict by: ${deadline}` : ''} &nbsp;·&nbsp; 👥 ${count} prediction${count !== 1 ? 's' : ''} &nbsp;·&nbsp; By: ${esc(bet.createdByName || '—')}</p>
     ${resolvedBanner}
     ${predArea}
   `;
@@ -549,6 +566,7 @@ async function handlePropose(e) {
     resolutionCriteria: document.getElementById('p-resolution').value.trim(),
     type,
     category:           document.getElementById('p-category').value,
+    predictionDeadline: document.getElementById('p-deadline').value || null,
     resolutionDate:     document.getElementById('p-date').value,
     status:             'proposed',
     isOfficial:         false,
@@ -892,7 +910,14 @@ async function loadInstructorOpenBets() {
     }
 
       return `<div class="resolve-row">
-        <span class="resolve-title">${esc(b.title)} <span class="text-muted text-sm">(${b.predictionCount || 0} preds)</span></span>
+        <div>
+          <span class="resolve-title">${esc(b.title)} <span class="text-muted text-sm">(${b.predictionCount || 0} preds)</span></span>
+          <div class="deadline-edit">
+            <label class="text-muted text-sm">⏰ Predict by:</label>
+            <input type="date" class="deadline-input" data-id="${b.id}" value="${b.predictionDeadline || ''}" />
+            <button class="btn btn-sm btn-outline" onclick="updateDeadline('${b.id}')">Save</button>
+          </div>
+        </div>
         <div class="resolve-controls">
           ${outcomeInput}
           <button class="btn btn-sm btn-primary" onclick="resolveBet('${b.id}')">Resolve</button>
@@ -903,6 +928,17 @@ async function loadInstructorOpenBets() {
   } catch (err) {
     console.error('loadInstructorOpenBets error:', err);
     el.innerHTML = `<p style="color:var(--bad)">Error loading bets: ${esc(err.message)}</p>`;
+  }
+}
+
+async function updateDeadline(betId) {
+  const input = document.querySelector(`.deadline-input[data-id="${betId}"]`);
+  const deadline = input.value || null;
+  try {
+    await db.collection('bets').doc(betId).update({ predictionDeadline: deadline });
+    showToast(deadline ? `Deadline set to ${formatDate(deadline)}.` : 'Deadline cleared.', 'success');
+  } catch (err) {
+    showToast('Error saving deadline: ' + err.message, 'error');
   }
 }
 
@@ -1002,6 +1038,7 @@ async function handleCreateBet(e) {
     resolutionCriteria: document.getElementById('cb-resolution').value.trim(),
     type,
     category:           document.getElementById('cb-category').value,
+    predictionDeadline: document.getElementById('cb-deadline').value || null,
     resolutionDate:     document.getElementById('cb-date').value,
     status:             'open',
     isOfficial:         true,

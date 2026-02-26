@@ -29,7 +29,7 @@
       </div>
       <div class="form-group">
         <label for="login-code">Class code</label>
-        <input id="login-code" type="text" placeholder="Provided by your instructor" autocomplete="off" required />
+        <input id="login-code" type="password" placeholder="Provided by your instructor" autocomplete="off" required />
       </div>
       <button type="submit" class="btn btn-primary btn-block">Enter the Market →</button>
     </form>
@@ -260,9 +260,15 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="p-date">Expected resolution date <span class="req">*</span></label>
-          <input id="p-date" type="date" required />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="p-deadline">Prediction deadline <span class="req">*</span></label>
+            <input id="p-deadline" type="date" required />
+          </div>
+          <div class="form-group">
+            <label for="p-date">Expected resolution date <span class="req">*</span></label>
+            <input id="p-date" type="date" required />
+          </div>
         </div>
 
         <button type="submit" class="btn btn-primary">Submit Proposal →</button>
@@ -369,6 +375,10 @@
               <label>Options (one per line)</label>
               <textarea id="cb-cat-options" rows="4"></textarea>
             </div>
+          </div>
+          <div class="form-group">
+            <label>Prediction deadline <span class="req">*</span></label>
+            <input id="cb-deadline" type="date" required />
           </div>
           <div class="form-group">
             <label>Resolution date <span class="req">*</span></label>
