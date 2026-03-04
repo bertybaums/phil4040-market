@@ -147,11 +147,22 @@ function showApp() {
 
 function watchUserCredits() {
   db.collection('users').doc(currentUser.id)
-    .onSnapshot(snap => {
+    .onSnapshot(async snap => {
       if (snap.exists) {
-        const pts = snap.data().totalPoints || 0;
-        document.getElementById('user-credits-badge').textContent =
-          pts.toFixed(1) + ' pts';
+        try {
+          const userSnap = await db.collection('users')
+            .where('classCode', '==', CLASS_CODE)
+            .get();
+          const sorted = userSnap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(u => (u.resolvedCount || 0) > 0)
+            .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+          const rank = sorted.findIndex(u => u.id === currentUser.id) + 1;
+          document.getElementById('user-credits-badge').textContent =
+            rank > 0 ? '#' + rank : 'Unranked';
+        } catch (e) {
+          document.getElementById('user-credits-badge').textContent = 'Unranked';
+        }
       }
     });
 }
@@ -856,17 +867,7 @@ async function loadPendingProposals() {
 async function approveProposal(betId) {
   await db.collection('bets').doc(betId).update({ status: 'open', isOfficial: true });
 
-  // Award bonus points to proposer
-  const betDoc = await db.collection('bets').doc(betId).get();
-  const proposerId = betDoc.data().createdBy;
-  if (proposerId) {
-    await db.collection('users').doc(proposerId).set(
-      { totalPoints: firebase.firestore.FieldValue.increment(2) },
-      { merge: true }
-    );
-  }
-
-  showToast('Bet approved (+2 pts to proposer)!', 'success');
+  showToast('Bet approved!', 'success');
   loadInstructor();
 }
 
@@ -1020,6 +1021,50 @@ async function archiveBet(betId) {
   } catch (err) {
     console.error('archiveBet error:', err);
     showToast('Error archiving bet: ' + err.message, 'error');
+  }
+}
+
+async function recalculateAllScores() {
+  if (!confirm('Recalculate all user scores from prediction data? This overwrites cached stats.')) return;
+
+  try {
+    // Fetch all non-archived predictions with scores
+    const predSnap = await db.collection('predictions')
+      .where('classCode', '==', CLASS_CODE)
+      .get();
+
+    // Group by userId, only count scored & non-archived predictions
+    const stats = {};
+    predSnap.docs.forEach(doc => {
+      const p = doc.data();
+      if (p.score == null || p.archived) return;
+      if (!stats[p.userId]) stats[p.userId] = { totalPoints: 0, totalScore: 0, resolvedCount: 0 };
+      stats[p.userId].totalPoints += (p.points || 0);
+      stats[p.userId].totalScore  += (p.score  || 0);
+      stats[p.userId].resolvedCount += 1;
+    });
+
+    // Reset all users in this class, then apply computed stats
+    const userSnap = await db.collection('users')
+      .where('classCode', '==', CLASS_CODE)
+      .get();
+
+    const batch = db.batch();
+    userSnap.docs.forEach(doc => {
+      const s = stats[doc.id] || { totalPoints: 0, totalScore: 0, resolvedCount: 0 };
+      batch.update(doc.ref, {
+        totalPoints:   s.totalPoints,
+        totalScore:    s.totalScore,
+        resolvedCount: s.resolvedCount,
+      });
+    });
+    await batch.commit();
+
+    showToast(`Scores recalculated for ${userSnap.size} user(s).`, 'success');
+    loadInstructor();
+  } catch (err) {
+    console.error('recalculateAllScores error:', err);
+    showToast('Error recalculating: ' + err.message, 'error');
   }
 }
 

@@ -22,7 +22,7 @@ core themes from Expected Utility Theory and Prospect Theory.
 ## What the instructor gets
 
 - Create official bets (any type) with resolution criteria and dates
-- Approve/reject student proposals (accepted = +2 bonus pts to proposer)
+- Approve/reject student proposals
 - One-click resolution: select the outcome, scores and leaderboard update immediately
 
 ---

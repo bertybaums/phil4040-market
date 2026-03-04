@@ -58,7 +58,7 @@
         <button class="nav-link instructor-only hidden" data-page="instructor">⚙ Instructor</button>
       </nav>
       <div class="header-user">
-        <span id="user-credits-badge" class="credits-badge">0 pts</span>
+        <span id="user-credits-badge" class="credits-badge">Unranked</span>
         <span id="header-username"></span>
         <button id="logout-btn" class="btn btn-sm btn-outline">Log out</button>
       </div>
@@ -162,8 +162,7 @@
                Participating in more bets, even imperfectly, compounds your total.</p>
 
             <h4 style="margin-top:1.5rem">Proposing Bets</h4>
-            <p>Students can propose bets. The instructor approves them and sets resolution criteria.
-               Having your bet accepted earns <strong>+2 bonus points</strong>.</p>
+            <p>Students can propose bets. The instructor approves them and sets resolution criteria.</p>
           </div>
         </div>
       </div>
@@ -418,6 +417,15 @@
         <div id="instructor-resolved-bets">
           <div class="loading">Loading…</div>
         </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Recalculate Scores</h3>
+        <p class="text-muted text-sm" style="margin-bottom:1rem">
+          Recompute all user stats from actual prediction data. Use this if points
+          appear out of sync after archiving or resolving bets.
+        </p>
+        <button class="btn btn-outline" onclick="recalculateAllScores()">Recalculate All Scores</button>
       </div>
     </section>
 
