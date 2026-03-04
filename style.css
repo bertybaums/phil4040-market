@@ -486,7 +486,8 @@ td.ok   { color: var(--ok); }
 .badge-resolved { background: #d1ecf1; color: #0c5460; }
 .badge-proposed { background: #fff3cd; color: #856404; }
 .badge-official { background: var(--primary); color: #fff; }
-.badge-closed  { background: #e9ecef; color: #6c757d; }
+.badge-closed   { background: #e9ecef; color: #6c757d; }
+.badge-archived { background: #e2e3e5; color: #383d41; }
 .badge-deadline-passed { background: #f8d7da; color: #721c24; }
 
 .deadline-edit {

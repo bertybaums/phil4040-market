@@ -221,7 +221,7 @@ async function loadHome() {
       const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
       const users = userSnap.docs
         .map(d => d.data())
-        .filter(u => (u.totalPoints || 0) > 0)
+        .filter(u => (u.resolvedCount || 0) > 0)
         .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
         .slice(0, 5);
       if (users.length === 0) {
@@ -246,7 +246,7 @@ async function loadBetsPage() {
   try {
     const snap = await db.collection('bets')
       .where('classCode', '==', CLASS_CODE)
-      .where('status', 'in', ['open', 'resolved', 'closed'])
+      .where('status', 'in', ['open', 'resolved', 'closed', 'archived'])
       .get();
 
     allBets = snap.docs
@@ -263,7 +263,7 @@ async function loadBetsPage() {
 function renderBets(bets) {
   const el = document.getElementById('bets-list');
   const filtered = currentFilter === 'all'
-    ? bets
+    ? bets.filter(b => b.status !== 'archived')
     : bets.filter(b => b.status === currentFilter);
 
   if (filtered.length === 0) {
@@ -682,6 +682,7 @@ async function loadLeaderboard() {
 
   const users = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => (u.resolvedCount || 0) > 0)
     .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
     .slice(0, 50)
     .map((u, i) => ({ rank: i + 1, ...u }));
